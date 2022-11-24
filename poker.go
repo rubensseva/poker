@@ -1,100 +1,55 @@
 package main
 
 import (
-	"fmt"
-	"math/rand"
 	"sort"
 )
 
-type card string
-type analysis struct {
-	goal string
+type combination struct {
+	name string
 	cards []card
 }
 
-var (
-	colors = []byte{'r', 's', 'h', 'k'}
-	values = []byte{'2', '3', '4', '5', '6', '7', '8', '9', 't', 'k', 'd', 'k', 'a'}
-)
-
-func newStack() []card {
-	cards := make([]card, 0, 52)
-
-	for i := 0; i < 4; i++ {
-		color := colors[i]
-		for j := 0; j < 12; j++ {
-			value := values[j]
-			cards = append(cards, card([]byte{color, value}))
-		}
-	}
-
-	return cards
-}
-
-func shuffle(foo []card) {
-	for i := range foo {
-		j := rand.Intn(len(foo))
-		tmp := foo[i]
-		foo[i] = foo[j]
-		foo[j] = tmp
-	}
-}
-
-func drawFive() []card {
-	cards := newStack()
-	shuffle(cards)
-	return cards[:5]
-}
-
-func equalCards(val byte, hand []card) []card {
-	equal := []card{}
-	for _, c := range hand {
-		if c[0] == val {
-			equal = append(equal, c)
-		}
-	}
-	return equal
-}
-
-
-
-// TODO: Fix var names...
-func containsGoal(g string, a []analysis) bool {
-	for _, aa := range a {
-		if g == aa.goal {
+func containsName(n string, combs []combination) bool {
+	for _, comb := range combs {
+		if n == comb.name {
 			return true
 		}
 	}
 	return false
 }
 
-func analyze(hand []card) []analysis {
-	analysises := []analysis{}
-	// Pairs
+func analyze(hand []card) []combination {
+	combs := []combination{}
+	// X of a kind, and single pairs
 	for _, c := range hand {
-		eqCards := equalCards(c[0], hand)
+		eqCards := filterCardsByValue(c[0], hand)
 		if len(eqCards) > 1 {
-			new := analysis{
-				goal: fmt.Sprintf("%d-PAIR", len(eqCards)),
+			new := combination{
+				name: numEqualToString[len(eqCards)],
 				cards: eqCards,
 			}
-			analysises = append(analysises, new)
+			combs = append(combs, new)
 		}
 	}
 
 	// House
+	foundHouse := false
 	for _, c := range hand {
-		eqCards := equalCards(c[1], hand)
+		if foundHouse {
+			break
+		}
+		eqCards := filterCardsByValue(c[0], hand)
 		if len(eqCards) == 2 {
 			for _, cc := range hand {
-				eqqCards := equalCards(cc[1], hand)
+				eqqCards := filterCardsByValue(cc[0], hand)
 				if len(eqqCards) == 3 {
-					new := analysis{
-						goal: "FULL HOUSE",
+					new := combination{
+						name: "full house",
 						cards: append(eqCards, eqqCards...),
 					}
-					analysises = append(analysises, new)
+					combs = append(combs, new)
 				}
+				foundHouse = true
 			}
 		}
 	}
@@ -108,10 +63,10 @@ func analyze(hand []card) []analysis {
 		}
 	}
 	if isFlush {
-		analysises = append(
-			analysises,
-			analysis{
-				goal:  "FLUSH",
+		combs = append(
+			combs,
+			combination{
+				name:  "flush",
 				cards: hand,
 			},
 		)
@@ -120,34 +75,79 @@ func analyze(hand []card) []analysis {
 	// Small Straight
 	// Sort hand by values
 	sort.Slice(hand, func(i, j int) bool {
-		return hand[i][1] < hand[j][1]
+		return valueOfValue[hand[i][0]] < valueOfValue[hand[j][0]]
 	})
 
 	isStraight := true
 	for i := 1; i < len(hand); i++ {
-		if hand[i][0] != hand[i - 1][0] + 1 {
+		if valueOfValue[hand[i][0]] != valueOfValue[hand[i - 1][0]] + 1 {
 			isStraight = false
 		}
 	}
-
 	if isStraight {
-		new := analysis{
+		new := combination{
 			cards: hand,
 		}
-		if hand[len(hand) - 1][1] == 'a' {
-			new.goal = "HIGH STRAIGHT"
+		if hand[len(hand) - 1][0] == 'a' {
+			new.name = "high straight"
 		} else {
-			new.goal = "STRAIGHT"
+			new.name = "straight"
 		}
-		analysises = append(analysises, new)
+		combs = append(combs, new)
 	}
 
-	if containsGoal("HIGH STRAIGHT", analysises) && containsGoal("FLUSH", analysises) {
-		analysises = []analysis{{
-			goal:  "ROYAL FLUSH",
+	if containsName("high straight", combs) && containsName("flush", combs) {
+		combs = append(combs, combination{
+			name:  "royal flush",
 			cards: hand,
-		}}
+		})
 	}
 
-	return analysises
+	// Remove duplicates
+	for i := 0; i < len(combs); i++ {
+		for j := 0; j < len(combs); j++ {
+			if i == j {
+				continue;
+			}
+			if combs[i].name == combs[j].name &&
+				equalHands(
+					combs[i].cards,
+					combs[j].cards) {
+				new := combs[:j]
+				new = append(new, combs[j + 1:]...)
+				combs = new
+			}
+		}
+	}
+
+	// Two pairs
+	foundTwoPairs := false
+	for i := 0; i < len(combs); i++ {
+		if foundTwoPairs {
+			break
+		}
+		if combs[i].name == "pair" {
+			for j := 0; j < len(combs); j++ {
+				if i == j {
+					continue;
+				}
+				if combs[j].name == "pair" {
+					combs = append(
+						combs,
+						combination{
+							name:  "two pairs",
+							cards: append(
+								combs[i].cards,
+								combs[j].cards...
+							),
+						},
+					)
+					foundTwoPairs = true
+					break
+				}
+			}
+		}
+	}
+
+	return combs
 }
