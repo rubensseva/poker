@@ -41,10 +41,10 @@ func Test_analyze(t *testing.T) {
 			want: []combination{{
 				name:  "pair",
 				cards: []card{"kk", "kh"},
-			},{
+			}, {
 				name:  "pair",
 				cards: []card{"ds", "dr"},
-			},{
+			}, {
 				name:  "two pairs",
 				cards: []card{"kk", "kh", "ds", "dr"},
 			}},
@@ -54,10 +54,10 @@ func Test_analyze(t *testing.T) {
 			want: []combination{{
 				name:  "pair",
 				cards: []card{"3k", "3h"},
-			},{
+			}, {
 				name:  "three of a kind",
 				cards: []card{"as", "ak", "ar"},
-			},{
+			}, {
 				name:  "full house",
 				cards: []card{"3k", "3h", "as", "ak", "ar"},
 			}},
